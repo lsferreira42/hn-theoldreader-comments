@@ -1,0 +1,16 @@
+{
+    "manifest_version": 3,
+    "name": "HN Comments Counter for The Old Reader",
+    "version": "1.0",
+    "description": "Exibe o número de comentários para links do Hacker News no The Old Reader",
+
+    "content_scripts": [
+      {
+        "matches": ["*://theoldreader.com/*"],
+        "js": ["content.js"],
+        "run_at": "document_end"
+      }
+    ],
+    "permissions": ["activeTab"],
+    "host_permissions": ["https://hacker-news.firebaseio.com/*"]
+  }

@@ -1,35 +1,50 @@
 // HN Comments Counter for The Old Reader
 console.log('Starting HN Comments Counter extension');
 
-// Configurações globais
+// Global settings
 let extensionSettings = {
-    maxComments: 3 // valor padrão
+    maxComments: 3 // default value
 };
 
-// Carrega as configurações salvas
+// Load saved settings
 async function loadExtensionSettings() {
     try {
         const result = await chrome.storage.sync.get({ maxComments: 3 });
         extensionSettings = result;
         console.log('Extension settings loaded:', extensionSettings);
+        if (extensionSettings.maxComments === 0) {
+            console.log('📝 Comment display is disabled (maxComments = 0). Only counters will be shown.');
+        }
     } catch (error) {
         console.error('Error loading settings:', error);
-        // Usa configurações padrão se falhar
+        // Use default settings if fails
         extensionSettings = { maxComments: 3 };
     }
 }
 
-// Escuta mudanças nas configurações
+// Listen for settings changes
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'settingsChanged') {
+        const previousMaxComments = extensionSettings.maxComments;
         extensionSettings = message.settings;
         console.log('Settings updated:', extensionSettings);
-        // Reprocessa links existentes com novas configurações
-        processCommentLinks();
+        
+        if (extensionSettings.maxComments === 0) {
+            console.log('📝 Comment display disabled. Only counters will be shown.');
+            // Remove existing comments if they were being displayed
+            if (previousMaxComments > 0) {
+                const existingComments = document.querySelectorAll('.hn-comments-container');
+                existingComments.forEach(container => container.remove());
+            }
+        } else {
+            console.log(`📝 Comment display enabled. Showing top ${extensionSettings.maxComments} comments.`);
+            // Reprocess existing links with new settings
+            processCommentLinks();
+        }
     }
 });
 
-// Adiciona os estilos CSS
+// Add CSS styles
 function addStyles() {
   if (document.getElementById('hn-counter-styles')) return;
   
@@ -105,14 +120,14 @@ function addStyles() {
   console.log('Styles added');
 }
 
-// Extrai o ID do item do Hacker News a partir da URL
+// Extract HN ID from the URL
 function extractHNId(href) {
   if (!href) return null;
   const match = href.match(/item\?id=(\d+)/);
   return match ? match[1] : null;
 }
 
-// Busca os dados do item na API do Hacker News
+// Fetch story data from the Hacker News API
 async function fetchHNData(itemId) {
   try {
     const url = `https://hacker-news.firebaseio.com/v0/item/${itemId}.json`;
@@ -134,7 +149,7 @@ async function fetchHNData(itemId) {
   } catch (error) {
     console.error(`Error fetching data for item ${itemId}:`, error);
     
-    // Verifica se é erro de CORS ou rede
+    // Check if it's a CORS or network issue
     if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
       console.error('This might be a CORS issue or network connectivity problem');
     }
@@ -143,11 +158,11 @@ async function fetchHNData(itemId) {
   }
 }
 
-// Busca os dados de um comentário específico com retry
+// Fetch comment data from the Hacker News API with retry
 async function fetchComment(commentId, retries = 2) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      // Pequeno delay para evitar rate limiting
+      // Small delay to avoid rate limiting
       if (attempt > 0) {
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
       }
@@ -169,7 +184,7 @@ async function fetchComment(commentId, retries = 2) {
       
       const comment = await response.json();
       
-      // Log do comentário para debug
+      // Log comment for debug
       if (comment) {
         console.log(`✅ Successfully fetched comment ${commentId}: parent=${comment.parent}, type=${comment.type}, text_length=${comment.text ? comment.text.length : 0}`);
       } else {
@@ -180,7 +195,7 @@ async function fetchComment(commentId, retries = 2) {
     } catch (error) {
       console.error(`❌ Attempt ${attempt + 1} failed for comment ${commentId}:`, error.message);
       
-      // Mais detalhes sobre o erro
+      // More details about the error
       if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
         console.error(`Network/CORS error for comment ${commentId}. This might be due to:
         1. Network connectivity issues
@@ -198,10 +213,10 @@ async function fetchComment(commentId, retries = 2) {
   return null;
 }
 
-// Busca comentários com controle de rate
+// Fetch comments with rate control
 async function fetchCommentsWithDelay(commentIds) {
   const comments = [];
-  const batchSize = 3; // Processa 3 por vez
+  const batchSize = 3; // Process 3 at a time
   
   for (let i = 0; i < commentIds.length; i += batchSize) {
     const batch = commentIds.slice(i, i + batchSize);
@@ -211,38 +226,38 @@ async function fetchCommentsWithDelay(commentIds) {
       const batchResults = await Promise.all(batchPromises);
       comments.push(...batchResults);
       
-      // Delay entre batches
+      // Delay between batches
       if (i + batchSize < commentIds.length) {
         await new Promise(resolve => setTimeout(resolve, 300));
       }
     } catch (error) {
       console.error('Batch fetch error:', error);
-      // Continua com o próximo batch mesmo se um falhar
+      // Continue with next batch even if one fails
     }
   }
   
   return comments;
 }
 
-// Busca e processa os top comentários
+// Fetch and process top comments
 async function fetchTopComments(itemData, maxComments = 3) {
   if (!itemData.kids || itemData.kids.length === 0) {
     return [];
   }
 
-  // Busca menos comentários para reduzir carga
+  // Fetch fewer comments to reduce load
   const commentIds = itemData.kids.slice(0, Math.min(10, itemData.kids.length));
   console.log(`📝 Story ${itemData.id} has ${itemData.kids.length} total comments, fetching first ${commentIds.length}: [${commentIds.join(', ')}]`);
   
   try {
     const comments = await fetchCommentsWithDelay(commentIds);
     
-    // Log dos comentários recebidos
+    // Log received comments
     console.log(`📥 Received ${comments.length} comment responses (including nulls)`);
     const validResponses = comments.filter(c => c !== null);
     console.log(`📊 Valid responses: ${validResponses.length}`);
     
-    // Log detalhado de cada comentário
+    // Detailed log of each comment
     validResponses.forEach((comment, index) => {
       if (comment) {
         console.log(`Comment ${index + 1}/${validResponses.length}: 
@@ -257,14 +272,14 @@ async function fetchTopComments(itemData, maxComments = 3) {
       }
     });
     
-    // Filtra comentários válidos - top-level têm o story ID como parent
+    // Filter valid comments - top-level have story ID as parent
     const validComments = comments.filter(comment => 
       comment && 
       comment.text && 
       !comment.deleted && 
       !comment.dead &&
-      comment.parent === itemData.id && // Top-level: parent é o próprio story
-      comment.text.length > 30 // Comentários mais substantivos
+      comment.parent === itemData.id && // Top-level: parent is the story itself
+      comment.text.length > 30 // More substantial comments
     );
     
     console.log(`✅ Found ${validComments.length} valid top-level comments from ${comments.length} fetched`);
@@ -280,7 +295,7 @@ async function fetchTopComments(itemData, maxComments = 3) {
       return [];
     }
     
-    // Para comentários top-level, score pode estar presente ou não
+    // For top-level comments, score may be present or not
     validComments.forEach(comment => {
       if (typeof comment.score === 'number') {
         comment.displayScore = comment.score;
@@ -290,14 +305,14 @@ async function fetchTopComments(itemData, maxComments = 3) {
         comment.hasScore = false;
       }
       
-      // Conta replies para usar como fator de qualidade quando não há score
+      // Count replies for use as quality factor when no score
       comment.replyCount = comment.kids ? comment.kids.length : 0;
       
-      // Log dos scores para debug
+      // Log scores for debug
       console.log(`Comment ${comment.id}: score=${comment.score}, displayScore=${comment.displayScore}, hasScore=${comment.hasScore}, replies=${comment.replyCount}, by=${comment.by}`);
     });
     
-    // Estatísticas dos scores
+    // Score statistics
     const withScore = validComments.filter(c => c.hasScore);
     const withoutScore = validComments.filter(c => !c.hasScore);
     console.log(`📊 Score stats: ${withScore.length} comments with scores, ${withoutScore.length} without scores`);
@@ -314,34 +329,34 @@ async function fetchTopComments(itemData, maxComments = 3) {
       }
     }
     
-    // Melhor ordenação considerando replies quando não há scores
+    // Best ordering considering replies when no scores
     validComments.sort((a, b) => {
-      // Se ambos têm score, ordena por score (maior primeiro)
+      // If both have score, order by score (higher first)
       if (a.hasScore && b.hasScore) {
         if (b.displayScore !== a.displayScore) {
           return b.displayScore - a.displayScore;
         }
-        // Se scores iguais, ordena por replies, depois por tempo (mais recente)
+        // If scores equal, order by replies, then by time (more recent)
         if (b.replyCount !== a.replyCount) {
           return b.replyCount - a.replyCount;
         }
         return b.time - a.time;
       }
       
-      // Prioriza comentários com score sobre os sem score
+      // Prioritize comments with score over those without score
       if (a.hasScore && !b.hasScore) return -1;
       if (!a.hasScore && b.hasScore) return 1;
       
-      // Se ambos não têm score, ordena por número de replies (mais atividade = melhor)
+      // If both don't have score, order by reply count (more activity = better)
       if (b.replyCount !== a.replyCount) {
         return b.replyCount - a.replyCount;
       }
       
-      // Se mesmo número de replies, ordena por tempo (mais recente primeiro)
+      // If same reply count, order by time (more recent first)
       return b.time - a.time;
     });
     
-    // Log da ordenação final para debug
+    // Log final ordering for debug
     console.log('🏆 Final ranking:');
     validComments.slice(0, maxComments).forEach((comment, index) => {
       const scoreInfo = comment.hasScore ? `Score: ${comment.displayScore}` : 'no score';
@@ -351,7 +366,7 @@ async function fetchTopComments(itemData, maxComments = 3) {
     
     console.log(`🎯 Returning top ${Math.min(maxComments, validComments.length)} comments`);
     
-    // Armazena o total de comentários válidos encontrados para exibição
+    // Store total valid comments found for display
     itemData.validCommentsCount = validComments.length;
     
     return validComments.slice(0, maxComments);
@@ -361,7 +376,7 @@ async function fetchTopComments(itemData, maxComments = 3) {
   }
 }
 
-// Converte HTML básico para texto limpo
+// Convert basic HTML to clean text
 function stripBasicHtml(html) {
   if (!html) return '';
   
@@ -379,7 +394,7 @@ function stripBasicHtml(html) {
     .trim();
 }
 
-// Cria o elemento com os comentários
+// Create element with comments
 function createCommentsElement(comments, totalComments = 0) {
   const container = document.createElement('div');
   container.className = 'hn-comments-container';
@@ -389,11 +404,11 @@ function createCommentsElement(comments, totalComments = 0) {
     return container;
   }
   
-  // Adiciona cabeçalho com informações
+  // Add header with information
   const header = document.createElement('div');
   header.style.cssText = 'font-weight: bold; color: #ff6600; margin-bottom: 6px; font-size: 11px;';
   
-  // Verifica se há comentários com score para ajustar a mensagem
+  // Check if there are comments with score to adjust message
   const hasScores = comments.some(c => c.hasScore);
   const sortCriteria = hasScores ? 'by score' : 'by activity & recency';
   
@@ -407,7 +422,7 @@ function createCommentsElement(comments, totalComments = 0) {
     const meta = document.createElement('div');
     meta.className = 'hn-comment-meta';
     
-    // Calcula tempo aproximado em inglês
+    // Calculate approximate time in English
     let timeText = '';
     if (comment.time) {
       const now = Math.floor(Date.now() / 1000);
@@ -427,7 +442,7 @@ function createCommentsElement(comments, totalComments = 0) {
       }
     }
     
-    // Formata a exibição - mostra score sempre que disponível
+    // Format display - show score whenever available
     let displayText;
     
     if (comment.hasScore) {
@@ -435,7 +450,7 @@ function createCommentsElement(comments, totalComments = 0) {
       const scoreText = score === 1 ? '1 point' : `${score} points`;
       displayText = `<span class="rank">#${index + 1}</span> ${comment.by || 'Anonymous'} (<span class="score">${scoreText}</span> • ${timeText})`;
     } else {
-      // Quando não há score, mostra número de replies se houver
+      // When no score, show reply count if there is one
       let extraInfo = '';
       if (comment.replyCount > 0) {
         const replyText = comment.replyCount === 1 ? '1 reply' : `${comment.replyCount} replies`;
@@ -450,7 +465,7 @@ function createCommentsElement(comments, totalComments = 0) {
     text.className = 'hn-comment-text';
     
     const cleanText = stripBasicHtml(comment.text);
-    // Limita o texto para não ficar muito longo
+    // Limit text to not get too long
     const truncatedText = cleanText.length > 300 ? 
       cleanText.substring(0, 300) + '...' : cleanText;
     
@@ -464,7 +479,7 @@ function createCommentsElement(comments, totalComments = 0) {
   return container;
 }
 
-// Processa os links de comentários do Hacker News na página
+// Process Hacker News comment links on the page
 async function processCommentLinks() {
   addStyles();
   
@@ -481,12 +496,12 @@ async function processCommentLinks() {
   let failedCount = 0;
   
   for (const link of commentLinks) {
-    // Verificação mais robusta para evitar duplicação
+    // More robust check to avoid duplication
     if (link.dataset.hnProcessed === 'true') {
       continue;
     }
     
-    // Verifica se já existe um badge próximo
+    // Check if there's already a badge nearby
     const existingBadge = link.parentNode.querySelector('.hn-comment-badge');
     if (existingBadge) {
       link.dataset.hnProcessed = 'true';
@@ -500,7 +515,7 @@ async function processCommentLinks() {
       continue;
     }
     
-    // Marca o link como sendo processado para evitar múltiplas requisições
+    // Mark link as being processed to avoid multiple requests
     link.dataset.hnProcessed = 'true';
     
     const itemData = await fetchHNData(itemId);
@@ -511,17 +526,17 @@ async function processCommentLinks() {
     
     const commentCount = itemData.descendants || 0;
     
-    // Cria o badge com o número de comentários
+    // Create badge with comment count
     const badge = document.createElement('span');
     badge.className = 'hn-comment-badge';
     badge.textContent = commentCount;
     
-    // Insere o badge
+    // Insert badge
     link.parentNode.insertBefore(badge, link.nextSibling);
     
-    // Busca e exibe os top comentários se houver
-    if (commentCount > 0) {
-      // Mostra indicador de carregamento
+    // Fetch and display top comments if there are any
+    if (commentCount > 0 && extensionSettings.maxComments > 0) {
+      // Show loading indicator
       const loadingElement = document.createElement('div');
       loadingElement.className = 'hn-comments-container';
       loadingElement.innerHTML = '<div class="hn-loading">Loading comments...</div>';
@@ -531,12 +546,12 @@ async function processCommentLinks() {
         const topComments = await fetchTopComments(itemData, extensionSettings.maxComments);
         
         if (topComments.length === 0) {
-          // Se não encontrou comentários válidos
+          // If no valid comments found
           loadingElement.innerHTML = '<div class="hn-loading">No comments available or connection issues</div>';
         } else {
-          // Busca o número de comentários válidos processados na função fetchTopComments
+          // Fetch number of valid comments processed in fetchTopComments function
           const commentsElement = createCommentsElement(topComments, itemData.validCommentsCount || topComments.length);
-          // Substitui o indicador de carregamento pelos comentários
+          // Replace loading indicator with comments
           link.parentNode.replaceChild(commentsElement, loadingElement);
         }
       } catch (error) {
@@ -551,10 +566,10 @@ async function processCommentLinks() {
   console.log(`Processing complete! Counters added: ${updatedCount}, Failures: ${failedCount}`);
 }
 
-// Variável para controlar se o observer já foi configurado
+// Variable to control if observer has already been configured
 let observerConfigured = false;
 
-// Configura o observer para monitorar novos posts
+// Configure observer to monitor new posts
 function setupObserver() {
   if (observerConfigured) {
     console.log('Observer already configured, skipping...');
@@ -567,7 +582,7 @@ function setupObserver() {
     return null;
   }
   
-  // Debounce para evitar múltiplas execuções rápidas
+  // Debounce to avoid multiple rapid executions
   let timeoutId = null;
   
   const observer = new MutationObserver((mutations) => {
@@ -575,7 +590,7 @@ function setupObserver() {
     
     for (const mutation of mutations) {
       if (mutation.addedNodes.length > 0) {
-        // Verifica se os nós adicionados contêm links do HN
+        // Check if added nodes contain HN links
         for (const node of mutation.addedNodes) {
           if (node.nodeType === Node.ELEMENT_NODE) {
             const hnLinks = node.querySelectorAll ? node.querySelectorAll('a[href*="news.ycombinator.com/item"]') : [];
@@ -592,12 +607,12 @@ function setupObserver() {
     if (hasNewPosts) {
       console.log('New HN links detected, processing comments...');
       
-      // Cancela timeout anterior se existir
+      // Cancel previous timeout if exists
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
       
-      // Agenda processamento com delay para evitar múltiplas execuções
+      // Schedule processing with delay to avoid multiple executions
       timeoutId = setTimeout(() => {
         processCommentLinks();
       }, 500);
@@ -614,7 +629,7 @@ function setupObserver() {
   return observer;
 }
 
-// Função principal
+// Main function
 async function main() {
   console.log('Loading extension settings...');
   await loadExtensionSettings();
@@ -623,7 +638,7 @@ async function main() {
   setupObserver();
 }
 
-// Executa a função principal quando a página estiver pronta
+// Execute main function when page is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', main);
 } else {

@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>HN Comments Counter - Configurações</title>
+    <title>HN Comments Counter - Settings</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -96,17 +96,18 @@
 </head>
 <body>
     <div class="container">
-        <h1>⚙️ Configurações</h1>
+        <h1>⚙️ Settings</h1>
         
         <div class="setting-group">
-            <label for="maxComments">Número de comentários para exibir:</label>
-            <input type="number" id="maxComments" min="1" max="10" value="3">
+            <label for="maxComments">Number of comments to display:</label>
+            <input type="number" id="maxComments" min="0" max="10" value="3">
             <div class="description">
-                Quantos dos melhores comentários mostrar abaixo do contador (entre 1 e 10).
+                How many of the best comments to show below the counter (between 0 and 10).<br>
+                <strong>0 = disables</strong> comment display (shows only the counter).
             </div>
         </div>
         
-        <button id="save">Salvar Configurações</button>
+        <button id="save">Save Settings</button>
         
         <div id="status" class="status"></div>
     </div>

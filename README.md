@@ -1,149 +1,114 @@
 # HN Comments Counter for The Old Reader
 
-Esta extensão do Chrome adiciona automaticamente contadores de comentários aos links do Hacker News no The Old Reader, além de exibir os melhores comentários de cada post.
+A Chrome extension that automatically adds comment counts and displays top comments for Hacker News links in The Old Reader RSS feed.
 
-## Funcionalidades Principais
+![Screenshot](screenshot.png)
 
-✅ **Contador de comentários**: Mostra o número total de comentários ao lado dos links do HN
-✅ **Top comentários**: Exibe os melhores comentários com maior pontuação abaixo do contador
-✅ **Configurável**: Número de comentários exibidos pode ser configurado (1 a 10)
-✅ **Detecção automática**: Funciona automaticamente ao carregar e navegar pela página
-✅ **Monitoramento dinâmico**: Detecta novos posts carregados durante o scroll
-✅ **Prevenção de duplicatas**: Evita processar o mesmo link múltiplas vezes
+## Why This Extension?
 
-## Configurações
+I love reading Hacker News through [The Old Reader](https://theoldreader.com) RSS aggregator, but I always missed the comment counts and discussion context. This extension bridges that gap by:
 
-A extensão possui uma página de configurações acessível através do menu de extensões do Chrome:
+- **📊 Adding comment badges** next to HN links with live counts from the official API
+- **💬 Showing top comments** directly in the feed (configurable 0-10 comments)
+- **🔄 Working automatically** as you scroll and load new posts
+- **⚡ Being lightweight** with smart rate limiting and minimal API calls
 
-1. **Número de comentários**: Escolha quantos comentários exibir (entre 1 e 10)
-   - Padrão: 3 comentários
-   - As mudanças são aplicadas imediatamente nas abas abertas
+## Features
 
-### Como acessar as configurações:
-1. Clique no ícone da extensão na barra do Chrome
-2. Clique no ícone de engrenagem ⚙️ ou vá para opções da extensão
-3. Ajuste o número de comentários desejado
-4. Clique em "Salvar Configurações"
+✅ **Live comment counts**: Orange badges showing total comments  
+✅ **Top comments display**: See the best-scored comments without leaving your reader  
+✅ **Configurable**: Choose how many comments to show (0 disables, just shows counts)  
+✅ **Smart sorting**: Comments ranked by score, activity, and recency  
+✅ **Clean formatting**: HTML stripped and text truncated for readability  
+✅ **Dynamic detection**: Works with infinite scroll and new posts  
+✅ **No duplicates**: Prevents reprocessing the same links  
 
-## Problemas Corrigidos
+## How It Works
 
-A extensão foi corrigida para resolver os seguintes problemas:
+The extension:
+1. Scans The Old Reader for HN item links (`news.ycombinator.com/item?id=...`)
+2. Fetches comment count from the official HN Firebase API
+3. Adds orange badges with the count next to each link
+4. If enabled, fetches and displays top-level comments sorted by score
+5. Monitors for new posts loaded during scrolling
 
-1. **Regex incorreta**: Corrigida a expressão regular para extrair IDs dos links do HN
-2. **Permissões do manifest**: Atualizadas as permissões necessárias
-3. **Timing de carregamento**: Melhorado o timing de execução do script
-4. **Background script desnecessário**: Removido para simplificar a extensão
-5. **Duplicação de badges**: Corrigido sistema de verificação para evitar badges duplicados
-6. **Observer otimizado**: Melhor controle do observer para evitar execuções excessivas
+## Installation
 
-## Como Funciona
+### Option 1: Chrome Extension (Recommended)
+1. Download or clone this repository
+2. Open Chrome and go to `chrome://extensions/`
+3. Enable "Developer mode" in the top right
+4. Click "Load unpacked extension"
+5. Select this extension's folder
 
-### Contador de Comentários
-- Busca o número total de comentários na API oficial do Hacker News
-- Exibe um badge laranja com o número ao lado do link
+### Option 2: Bookmarklet
+Create a bookmark with this JavaScript code and click it when on The Old Reader:
 
-### Top Comentários
-- Analisa os primeiros 20 comentários do post
-- Filtra comentários válidos (não deletados, com texto suficiente)
-- Ordena por pontuação e mostra os 3 melhores
-- Remove HTML e formata o texto para melhor legibilidade
-- Limita o texto a 300 caracteres para manter a página organizada
+```javascript
+// See bookmarklet.js for the standalone version
+```
 
-## Instalação
+## Configuration
 
-1. Baixe ou clone este repositório
-2. Abra o Chrome e vá para `chrome://extensions/`
-3. Ative o "Modo do desenvolvedor" no canto superior direito
-4. Clique em "Carregar extensão expandida"
-5. Selecione a pasta desta extensão
+Access the extension settings through Chrome's extension menu:
 
-## Como usar
+- **Comment display**: Choose 0-10 comments to show
+- **0 = disabled**: Only shows comment counts, no comment text
+- **Default**: 3 comments
+- Changes apply immediately to open tabs
 
-1. Visite [The Old Reader](https://theoldreader.com)
-2. A extensão funcionará automaticamente, adicionando:
-   - Badges laranja com o número de comentários
-   - Caixas com os 3 melhores comentários abaixo dos links
-3. Os comentários mostram autor, pontuação e texto truncado
+## Technical Details
 
-## Bookmarklet Alternativo
+**Built with:**
+- Manifest V3 for modern Chrome extensions
+- Official Hacker News Firebase API
+- MutationObserver for dynamic content detection
+- Promise-based async/await for clean API handling
+- Smart rate limiting to avoid overwhelming the API
 
-Se preferir usar um bookmarklet em vez da extensão, você pode:
+**Performance optimizations:**
+- Batched API requests (3 at a time)
+- Debounced scroll detection
+- Link deduplication tracking
+- Truncated comment text (300 chars max)
+- Only fetches first 10 comments per story for analysis
 
-1. Copiar o código do arquivo `bookmarklet.js`
-2. Criar um novo bookmark no seu navegador
-3. Colar o código como URL do bookmark
-4. Clicar no bookmark quando estiver no The Old Reader
+## Code Structure
 
-Ou simplesmente copiar e colar o código no console do navegador enquanto estiver no The Old Reader.
+```
+manifest.json     # Extension configuration
+content.js        # Main script (runs on theoldreader.com)
+options.html      # Settings page
+options.js        # Settings logic
+icons/           # Extension icons (16x16, 48x48, 128x128)
+```
 
-## Funcionalidades
+## API Usage
 
-- ✅ Detecta automaticamente links do Hacker News no The Old Reader
-- ✅ Busca o número de comentários da API oficial do HN
-- ✅ Adiciona badges visuais com o número de comentários
-- ✅ **NOVO**: Exibe os 3 comentários com maior pontuação
-- ✅ **NOVO**: Remove HTML e formata texto dos comentários
-- ✅ **NOVO**: Mostra autor e pontuação de cada comentário
-- ✅ Monitora novos posts carregados dinamicamente
-- ✅ Evita duplicar badges em links já processados
-- ✅ Indicador de carregamento para comentários
+The extension uses the public Hacker News API:
+- Story data: `https://hacker-news.firebaseio.com/v0/item/{id}.json`
+- No authentication required
+- Rate limited to be respectful to the service
 
-## Interface Visual
+## Contributing
 
-### Badge de Comentários
-- Cor: Laranja (#ff6600) - cor oficial do Hacker News
-- Tamanho: 11px, em negrito
-- Posição: Ao lado direito do link
+This is a personal utility that became useful enough to share. Feel free to:
+- Report issues or suggest improvements
+- Submit pull requests
+- Fork for your own RSS reader modifications
 
-### Caixa de Comentários
-- Fundo: Bege claro (#f6f6f0)
-- Borda esquerda: Laranja para destacar
-- Fonte: 12px para boa legibilidade
-- Largura máxima: 600px para não quebrar o layout
+## Privacy
 
-### Cada Comentário Mostra:
-- **Autor** e **pontuação** em negrito
-- **Texto** limitado a 300 caracteres
-- **Separação visual** entre comentários
+The extension:
+- Only runs on theoldreader.com
+- Makes requests only to the official HN API
+- Stores only your comment count preference locally
+- No data collection, tracking, or external services
 
-## Troubleshooting
+## License
 
-Se a extensão não estiver funcionando:
+MIT License - Feel free to use, modify, and distribute.
 
-1. Verifique se você está no The Old Reader (theoldreader.com)
-2. Abra o console do navegador (F12) e verifique se há erros
-3. Certifique-se de que a extensão está ativada em `chrome://extensions/`
-4. Tente recarregar a página
-5. Verifique se há links do Hacker News na página atual
+---
 
-## Performance
-
-A extensão foi otimizada para:
-- **Requisições limitadas**: Máximo 20 comentários analisados por post
-- **Debouncing**: Evita múltiplas execuções durante scroll rápido
-- **Cache de processamento**: Links já processados não são reprocessados
-- **Carregamento assíncrono**: Não bloqueia a interface durante o carregamento
-
-## Desenvolvimento
-
-Esta extensão usa:
-- Manifest V3
-- Content Scripts
-- Fetch API para acessar a API do Hacker News
-- MutationObserver para detectar conteúdo carregado dinamicamente
-- Promise.all para carregar comentários em paralelo
-- Regex para parsing de HTML básico
-
-## Estrutura de arquivos
-
-- `manifest.json`: Configuração da extensão
-- `content.js`: Script principal que executa no theoldreader.com
-- `options.html`: Página de configurações da extensão
-- `options.js`: Script para gerenciar as configurações
-- `bookmarklet.js`: Versão em bookmarklet do mesmo código
-- `README.md`: Esta documentação
-- `icons/`: Pasta com ícones da extensão (você precisa criar os ícones)
-
-## Notas para desenvolvimento
-
-Para os ícones, você precisa criar imagens nos tamanhos 16x16, 48x48 e 128x128 pixels com o tema laranja do Hacker News. Você pode usar ferramentas online de criação de ícones para isso.
+*Built by someone who loves both RSS feeds and Hacker News discussions. Hope it helps other Old Reader users stay connected to the HN community!*

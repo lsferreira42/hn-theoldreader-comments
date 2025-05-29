@@ -1,22 +1,22 @@
-// Configurações padrão
+// Default settings
 const DEFAULT_SETTINGS = {
     maxComments: 3
 };
 
-// Carrega as configurações salvas
+// Load saved settings
 function loadSettings() {
     chrome.storage.sync.get(DEFAULT_SETTINGS, (settings) => {
         document.getElementById('maxComments').value = settings.maxComments;
     });
 }
 
-// Salva as configurações
+// Save settings
 function saveSettings() {
     const maxComments = parseInt(document.getElementById('maxComments').value);
     
-    // Validação
-    if (isNaN(maxComments) || maxComments < 1 || maxComments > 10) {
-        showStatus('Por favor, insira um número entre 1 e 10.', 'error');
+    // Validation
+    if (isNaN(maxComments) || maxComments < 0 || maxComments > 10) {
+        showStatus('Please enter a number between 0 and 10.', 'error');
         return;
     }
     
@@ -26,19 +26,19 @@ function saveSettings() {
     
     chrome.storage.sync.set(settings, () => {
         if (chrome.runtime.lastError) {
-            showStatus('Erro ao salvar configurações: ' + chrome.runtime.lastError.message, 'error');
+            showStatus('Error saving settings: ' + chrome.runtime.lastError.message, 'error');
         } else {
-            showStatus('Configurações salvas com sucesso!', 'success');
-            // Notifica os content scripts sobre a mudança
+            showStatus('Settings saved successfully!', 'success');
+            // Notify content scripts about the change
             chrome.tabs.query({url: "*://theoldreader.com/*"}, (tabs) => {
                 tabs.forEach(tab => {
                     chrome.tabs.sendMessage(tab.id, {
                         type: 'settingsChanged',
                         settings: settings
                     }, (response) => {
-                        // Callback para tratar resposta ou erros
+                        // Callback to handle response or errors
                         if (chrome.runtime.lastError) {
-                            // Ignora erros se a aba não tem o content script
+                            // Ignore errors if tab doesn't have content script
                             console.log('Tab does not have content script:', chrome.runtime.lastError.message);
                         }
                     });
@@ -48,14 +48,14 @@ function saveSettings() {
     });
 }
 
-// Mostra mensagem de status
+// Show status message
 function showStatus(message, type) {
     const status = document.getElementById('status');
     status.textContent = message;
     status.className = `status ${type}`;
     status.style.display = 'block';
     
-    // Remove a mensagem após 3 segundos
+    // Remove message after 3 seconds
     setTimeout(() => {
         status.style.display = 'none';
     }, 3000);
@@ -65,7 +65,7 @@ function showStatus(message, type) {
 document.addEventListener('DOMContentLoaded', loadSettings);
 document.getElementById('save').addEventListener('click', saveSettings);
 
-// Salva quando pressiona Enter no campo
+// Save when pressing Enter in field
 document.getElementById('maxComments').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
         saveSettings();

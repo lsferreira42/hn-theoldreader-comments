@@ -11,6 +11,11 @@
         "run_at": "document_end"
       }
     ],
-    "permissions": ["activeTab"],
-    "host_permissions": ["https://hacker-news.firebaseio.com/*"]
+    "permissions": [
+      "activeTab"
+    ],
+    "host_permissions": [
+      "https://hacker-news.firebaseio.com/*",
+      "https://theoldreader.com/*"
+    ]
   }

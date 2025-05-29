@@ -1,6 +1,34 @@
 // HN Comments Counter for The Old Reader
 console.log('Starting HN Comments Counter extension');
 
+// Configurações globais
+let extensionSettings = {
+    maxComments: 3 // valor padrão
+};
+
+// Carrega as configurações salvas
+async function loadExtensionSettings() {
+    try {
+        const result = await chrome.storage.sync.get({ maxComments: 3 });
+        extensionSettings = result;
+        console.log('Extension settings loaded:', extensionSettings);
+    } catch (error) {
+        console.error('Error loading settings:', error);
+        // Usa configurações padrão se falhar
+        extensionSettings = { maxComments: 3 };
+    }
+}
+
+// Escuta mudanças nas configurações
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'settingsChanged') {
+        extensionSettings = message.settings;
+        console.log('Settings updated:', extensionSettings);
+        // Reprocessa links existentes com novas configurações
+        processCommentLinks();
+    }
+});
+
 // Adiciona os estilos CSS
 function addStyles() {
   if (document.getElementById('hn-counter-styles')) return;
@@ -500,7 +528,7 @@ async function processCommentLinks() {
       link.parentNode.insertBefore(loadingElement, link.nextSibling.nextSibling);
       
       try {
-        const topComments = await fetchTopComments(itemData);
+        const topComments = await fetchTopComments(itemData, extensionSettings.maxComments);
         
         if (topComments.length === 0) {
           // Se não encontrou comentários válidos
@@ -588,6 +616,8 @@ function setupObserver() {
 
 // Função principal
 async function main() {
+  console.log('Loading extension settings...');
+  await loadExtensionSettings();
   console.log('Running initial processing');
   await processCommentLinks();
   setupObserver();

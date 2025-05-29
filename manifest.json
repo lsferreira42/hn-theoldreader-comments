@@ -12,10 +12,16 @@
       }
     ],
     "permissions": [
-      "activeTab"
+      "activeTab",
+      "storage",
+      "tabs"
     ],
     "host_permissions": [
       "https://hacker-news.firebaseio.com/*",
       "https://theoldreader.com/*"
-    ]
+    ],
+    "options_ui": {
+      "page": "options.html",
+      "open_in_tab": false
+    }
   }

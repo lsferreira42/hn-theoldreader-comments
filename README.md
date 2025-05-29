@@ -1,14 +1,29 @@
 # HN Comments Counter for The Old Reader
 
-Esta extensão do Chrome adiciona automaticamente contadores de comentários aos links do Hacker News no The Old Reader, além de exibir os 3 melhores comentários de cada post.
+Esta extensão do Chrome adiciona automaticamente contadores de comentários aos links do Hacker News no The Old Reader, além de exibir os melhores comentários de cada post.
 
 ## Funcionalidades Principais
 
 ✅ **Contador de comentários**: Mostra o número total de comentários ao lado dos links do HN
-✅ **Top 3 comentários**: Exibe os 3 comentários com maior pontuação abaixo do contador
+✅ **Top comentários**: Exibe os melhores comentários com maior pontuação abaixo do contador
+✅ **Configurável**: Número de comentários exibidos pode ser configurado (1 a 10)
 ✅ **Detecção automática**: Funciona automaticamente ao carregar e navegar pela página
 ✅ **Monitoramento dinâmico**: Detecta novos posts carregados durante o scroll
 ✅ **Prevenção de duplicatas**: Evita processar o mesmo link múltiplas vezes
+
+## Configurações
+
+A extensão possui uma página de configurações acessível através do menu de extensões do Chrome:
+
+1. **Número de comentários**: Escolha quantos comentários exibir (entre 1 e 10)
+   - Padrão: 3 comentários
+   - As mudanças são aplicadas imediatamente nas abas abertas
+
+### Como acessar as configurações:
+1. Clique no ícone da extensão na barra do Chrome
+2. Clique no ícone de engrenagem ⚙️ ou vá para opções da extensão
+3. Ajuste o número de comentários desejado
+4. Clique em "Salvar Configurações"
 
 ## Problemas Corrigidos
 
@@ -123,6 +138,8 @@ Esta extensão usa:
 
 - `manifest.json`: Configuração da extensão
 - `content.js`: Script principal que executa no theoldreader.com
+- `options.html`: Página de configurações da extensão
+- `options.js`: Script para gerenciar as configurações
 - `bookmarklet.js`: Versão em bookmarklet do mesmo código
 - `README.md`: Esta documentação
 - `icons/`: Pasta com ícones da extensão (você precisa criar os ícones)

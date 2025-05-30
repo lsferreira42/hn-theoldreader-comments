@@ -42,11 +42,21 @@ The extension:
 5. Select this extension's folder
 
 ### Option 2: Bookmarklet
-Create a bookmark with this JavaScript code and click it when on The Old Reader:
+If you prefer not to install the extension, you can use the bookmarklet version:
 
-```javascript
-// See bookmarklet.js for the standalone version
-```
+1. **Copy the bookmarklet code** from `bookmarklet.js` in this repository
+2. **Create a new bookmark** in your browser
+3. **Set the bookmark name** to something like "HN Counter"
+4. **Paste the entire code** from `bookmarklet.js` as the bookmark URL
+5. **Visit The Old Reader** and click the bookmark to activate
+
+**Bookmarklet advantages:**
+- No extension installation required
+- Works in any browser that supports bookmarklets
+- Easy to modify settings by editing the `maxComments` value in the code
+
+**To customize the bookmarklet:**
+- Edit the `maxComments` value at the top of the bookmarklet code (3 = show 3 comments, 0 = only show counts)
 
 ## Configuration
 
@@ -80,6 +90,7 @@ manifest.json     # Extension configuration
 content.js        # Main script (runs on theoldreader.com)
 options.html      # Settings page
 options.js        # Settings logic
+bookmarklet.js    # Standalone bookmarklet version
 icons/           # Extension icons (16x16, 48x48, 128x128)
 ```
 

@@ -1,6 +1,6 @@
 # HN Comments Counter for The Old Reader
 
-A Chrome extension that automatically adds comment counts and displays top comments for Hacker News links in The Old Reader RSS feed.
+A browser extension (Chrome & Firefox) that automatically adds comment counts and displays top comments for Hacker News links in The Old Reader RSS feed.
 
 ![Screenshot](screenshot.png)
 
@@ -11,7 +11,7 @@ I love reading Hacker News through [The Old Reader](https://theoldreader.com) RS
 - **📊 Adding comment badges** next to HN links with live counts from the official API
 - **💬 Showing top comments** directly in the feed (configurable 0-10 comments)
 - **🔄 Working automatically** as you scroll and load new posts
-- **⚡ Being lightweight** with smart rate limiting and minimal API calls
+- **⚡ Being lightweight** with smart caching and minimal API calls
 
 ## Features
 
@@ -22,6 +22,8 @@ I love reading Hacker News through [The Old Reader](https://theoldreader.com) RS
 ✅ **Clean formatting**: HTML stripped and text truncated for readability  
 ✅ **Dynamic detection**: Works with infinite scroll and new posts  
 ✅ **No duplicates**: Prevents reprocessing the same links  
+✅ **Cross-browser**: Works on Chrome and Firefox  
+✅ **API caching**: In-memory cache avoids redundant API calls  
 
 ## How It Works
 
@@ -34,14 +36,20 @@ The extension:
 
 ## Installation
 
-### Option 1: Chrome Extension (Recommended)
-1. Download or clone this repository
+### Option 1: Chrome Extension
+1. Run `make chrome` (or download a release)
 2. Open Chrome and go to `chrome://extensions/`
 3. Enable "Developer mode" in the top right
 4. Click "Load unpacked extension"
-5. Select this extension's folder
+5. Select the `dist/chrome/` folder (or unzip the zip file)
 
-### Option 2: Bookmarklet
+### Option 2: Firefox Add-on
+1. Run `make firefox` (or download a release)
+2. Open Firefox and go to `about:debugging#/runtime/this-firefox`
+3. Click "Load Temporary Add-on..."
+4. Select the `manifest.json` inside `dist/firefox/` (or the zip file)
+
+### Option 3: Bookmarklet
 If you prefer not to install the extension, you can use the bookmarklet version:
 
 1. **Copy the bookmarklet code** from `bookmarklet.js` in this repository
@@ -50,17 +58,25 @@ If you prefer not to install the extension, you can use the bookmarklet version:
 4. **Paste the entire code** from `bookmarklet.js` as the bookmark URL
 5. **Visit The Old Reader** and click the bookmark to activate
 
-**Bookmarklet advantages:**
-- No extension installation required
-- Works in any browser that supports bookmarklets
-- Easy to modify settings by editing the `maxComments` value in the code
+## Building
 
-**To customize the bookmarklet:**
-- Edit the `maxComments` value at the top of the bookmarklet code (3 = show 3 comments, 0 = only show counts)
+Requires `make` and `zip`.
+
+```bash
+make all       # Build both Chrome and Firefox extensions
+make chrome    # Build Chrome extension only
+make firefox   # Build Firefox extension only
+make clean     # Remove build artifacts
+```
+
+Output:
+- `dist/hn-comments-chrome.zip` — Chrome extension package
+- `dist/hn-comments-firefox.zip` — Firefox extension package
+- `dist/chrome/` / `dist/firefox/` — Unpacked extension directories
 
 ## Configuration
 
-Access the extension settings through Chrome's extension menu:
+Access the extension settings through the browser's extension menu:
 
 - **Comment display**: Choose 0-10 comments to show
 - **0 = disabled**: Only shows comment counts, no comment text
@@ -70,28 +86,35 @@ Access the extension settings through Chrome's extension menu:
 ## Technical Details
 
 **Built with:**
-- Manifest V3 for modern Chrome extensions
+- Manifest V3 (Chrome) / Manifest V2 (Firefox)
+- Lightweight browser API polyfill for cross-browser compatibility
 - Official Hacker News Firebase API
 - MutationObserver for dynamic content detection
 - Promise-based async/await for clean API handling
-- Smart rate limiting to avoid overwhelming the API
 
 **Performance optimizations:**
-- Batched API requests (3 at a time)
+- In-memory API response cache (10 min TTL)
+- Two-phase processing — badges appear first, comments load after
+- Parallel story data fetching (batches of 5)
+- Parallel comment fetching (batches of 5)
 - Debounced scroll detection
 - Link deduplication tracking
+- Debug logging behind a flag (off by default)
 - Truncated comment text (300 chars max)
 - Only fetches first 10 comments per story for analysis
 
 ## Code Structure
 
 ```
-manifest.json     # Extension configuration
-content.js        # Main script (runs on theoldreader.com)
-options.html      # Settings page
-options.js        # Settings logic
-bookmarklet.js    # Standalone bookmarklet version
-icons/           # Extension icons (16x16, 48x48, 128x128)
+manifest.json           # Chrome MV3 manifest
+manifest.firefox.json   # Firefox MV2 manifest
+browser-polyfill.js     # Cross-browser API shim
+content.js              # Main script (runs on theoldreader.com)
+options.html            # Settings page
+options.js              # Settings logic
+bookmarklet.js          # Standalone bookmarklet version
+icons/                  # Extension icons (16x16, 48x48, 128x128)
+Makefile                # Build system for Chrome/Firefox packages
 ```
 
 ## API Usage
@@ -100,13 +123,6 @@ The extension uses the public Hacker News API:
 - Story data: `https://hacker-news.firebaseio.com/v0/item/{id}.json`
 - No authentication required
 - Rate limited to be respectful to the service
-
-## Contributing
-
-This is a personal utility that became useful enough to share. Feel free to:
-- Report issues or suggest improvements
-- Submit pull requests
-- Fork for your own RSS reader modifications
 
 ## Privacy
 

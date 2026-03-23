@@ -1,6 +1,6 @@
 .PHONY: all chrome firefox clean
 
-SHARED_FILES = browser-polyfill.js content.js options.js options.html
+SHARED_FILES = browser-polyfill.js content.js options.js options.html background.js
 ICON_DIR = icons
 DIST_DIR = dist
 

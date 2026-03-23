@@ -24,7 +24,6 @@ function getCached(key) {
 
 function setCache(key, data) {
   apiCache.set(key, { data, timestamp: Date.now() });
-  // Evict old entries if cache grows too large
   if (apiCache.size > 200) {
     const oldest = apiCache.keys().next().value;
     apiCache.delete(oldest);
@@ -43,7 +42,7 @@ async function loadExtensionSettings() {
   }
 }
 
-// Listen for settings changes
+// Listen for messages (settings changes + prefetched data from background)
 browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'settingsChanged') {
     const previousMaxComments = extensionSettings.maxComments;
@@ -51,13 +50,50 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
     log('Settings updated:', extensionSettings);
 
     if (extensionSettings.maxComments === 0 && previousMaxComments > 0) {
-      // Remove existing comments if they were being displayed
       document.querySelectorAll('.hn-comments-container').forEach(c => c.remove());
     } else if (extensionSettings.maxComments > 0) {
       processCommentLinks();
     }
   }
+
+  if (message.type === 'prefetchedData') {
+    // Background script sent us prefetched data — merge into local cache
+    if (message.data) {
+      for (const [id, data] of Object.entries(message.data)) {
+        setCache(`item-${id}`, data);
+      }
+    }
+    if (message.commentCache) {
+      for (const [id, entry] of Object.entries(message.commentCache)) {
+        if (entry.data && !getCached(`comment-${id}`)) {
+          setCache(`comment-${id}`, entry.data);
+        }
+      }
+    }
+    log('Received prefetched data from background');
+  }
 });
+
+// =============================================
+// Suggestion 5: Comment Scoring & Highlight
+// =============================================
+// Badge color/icon thresholds
+const BADGE_THRESHOLDS = [
+  { min: 200, color: '#cc0000', icon: '🔥🔥', label: 'mega-hot' },
+  { min: 100, color: '#e53000', icon: '🔥',   label: 'hot' },
+  { min: 50,  color: '#f04000', icon: '🔥',   label: 'warm' },
+  { min: 20,  color: '#ff5500', icon: '',      label: 'active' },
+  { min: 0,   color: '#ff6600', icon: '',      label: 'normal' }
+];
+
+function getBadgeStyle(commentCount) {
+  for (const threshold of BADGE_THRESHOLDS) {
+    if (commentCount >= threshold.min) {
+      return threshold;
+    }
+  }
+  return BADGE_THRESHOLDS[BADGE_THRESHOLDS.length - 1];
+}
 
 // CSS styles — injected once
 const STYLES = `
@@ -66,11 +102,34 @@ const STYLES = `
     margin-left: 6px;
     padding: 1px 5px;
     border-radius: 3px;
-    background-color: #ff6600;
     color: white;
     font-size: 11px;
     font-weight: bold;
+    cursor: pointer;
+    text-decoration: none;
+    transition: opacity 0.15s, transform 0.15s;
   }
+  .hn-comment-badge:hover {
+    opacity: 0.85;
+    transform: scale(1.08);
+  }
+
+  /* Suggestion 5: Scoring tiers */
+  .hn-badge-normal  { background-color: #ff6600; }
+  .hn-badge-active  { background-color: #ff5500; }
+  .hn-badge-warm    { background-color: #f04000; box-shadow: 0 0 4px rgba(240,64,0,0.4); }
+  .hn-badge-hot     { background-color: #e53000; box-shadow: 0 0 6px rgba(229,48,0,0.5); }
+  .hn-badge-mega-hot {
+    background: linear-gradient(135deg, #e53000, #cc0000);
+    box-shadow: 0 0 8px rgba(204,0,0,0.6);
+    animation: hn-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes hn-pulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(204,0,0,0.6); }
+    50% { box-shadow: 0 0 14px rgba(204,0,0,0.9); }
+  }
+
   .hn-comments-container {
     margin-top: 8px;
     margin-left: 20px;
@@ -103,6 +162,23 @@ const STYLES = `
   .hn-comment-text { color: #333; }
   .hn-comment-text p { margin: 0 0 4px 0; }
   .hn-loading { color: #999; font-style: italic; }
+
+  /* Suggestion 3: View on HN link */
+  .hn-view-all-link {
+    display: block;
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px solid #ddd;
+    font-size: 11px;
+    font-weight: bold;
+    color: #ff6600;
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .hn-view-all-link:hover {
+    color: #cc5200;
+    text-decoration: underline;
+  }
 `;
 
 function addStyles() {
@@ -118,6 +194,26 @@ function extractHNId(href) {
   if (!href) return null;
   const match = href.match(/item\?id=(\d+)/);
   return match ? match[1] : null;
+}
+
+// =============================================
+// Suggestion 4: Request background prefetch
+// =============================================
+function requestPrefetch(itemIds) {
+  try {
+    if (typeof browserAPI !== 'undefined' && browserAPI.runtime && browserAPI.runtime.id) {
+      // Use chrome.runtime.sendMessage for the background script
+      const api = (typeof chrome !== 'undefined' && chrome.runtime) ? chrome : browser;
+      api.runtime.sendMessage({
+        type: 'prefetchRequest',
+        itemIds: itemIds
+      });
+      log(`Requested background prefetch for ${itemIds.length} items`);
+    }
+  } catch {
+    // Background script may not be available (e.g. bookmarklet mode)
+    log('Background prefetch not available');
+  }
 }
 
 // Fetch item data from HN API with caching
@@ -176,7 +272,6 @@ async function fetchCommentsInBatches(commentIds, batchSize = 5) {
       comments.push(result.status === 'fulfilled' ? result.value : null);
     }
 
-    // Small delay between batches to avoid rate limiting
     if (i + batchSize < commentIds.length) {
       await new Promise(r => setTimeout(r, 200));
     }
@@ -195,7 +290,6 @@ async function fetchTopComments(itemData, maxComments = 3) {
   try {
     const comments = await fetchCommentsInBatches(commentIds);
 
-    // Filter valid top-level comments
     const validComments = comments.filter(c =>
       c &&
       c.text &&
@@ -208,14 +302,12 @@ async function fetchTopComments(itemData, maxComments = 3) {
     log(`Found ${validComments.length} valid top-level comments`);
     if (validComments.length === 0) return [];
 
-    // Annotate with score/reply info
     for (const comment of validComments) {
       comment.hasScore = typeof comment.score === 'number';
       comment.displayScore = comment.hasScore ? comment.score : 0;
       comment.replyCount = comment.kids ? comment.kids.length : 0;
     }
 
-    // Sort: by score (if available) > reply count > recency
     validComments.sort((a, b) => {
       if (a.hasScore && b.hasScore) {
         if (b.displayScore !== a.displayScore) return b.displayScore - a.displayScore;
@@ -268,7 +360,7 @@ function formatTimeAgo(timestamp) {
 }
 
 // Create comments DOM element
-function createCommentsElement(comments, totalComments = 0) {
+function createCommentsElement(comments, totalComments = 0, storyId = null) {
   const container = document.createElement('div');
   container.className = 'hn-comments-container';
 
@@ -320,6 +412,17 @@ function createCommentsElement(comments, totalComments = 0) {
     container.appendChild(commentElement);
   }
 
+  // Suggestion 3: "View all on HN →" link at bottom
+  if (storyId) {
+    const viewAllLink = document.createElement('a');
+    viewAllLink.className = 'hn-view-all-link';
+    viewAllLink.href = `https://news.ycombinator.com/item?id=${storyId}`;
+    viewAllLink.target = '_blank';
+    viewAllLink.rel = 'noopener noreferrer';
+    viewAllLink.textContent = 'View all comments on HN →';
+    container.appendChild(viewAllLink);
+  }
+
   return container;
 }
 
@@ -347,6 +450,11 @@ async function processCommentLinks() {
     itemId: extractHNId(link.href)
   })).filter(item => item.itemId);
 
+  // Suggestion 4: Request background prefetch for all IDs we're about to process
+  // The background will cache data so subsequent requests may hit cache
+  const allIds = linkItems.map(item => item.itemId);
+  requestPrefetch(allIds);
+
   // Phase 1: Fetch all story data in parallel batches and add badges
   const STORY_BATCH_SIZE = 5;
   const storyResults = [];
@@ -362,10 +470,19 @@ async function processCommentLinks() {
       const { link } = batch[j];
       const commentCount = itemData.descendants || 0;
 
-      // Add badge immediately
-      const badge = document.createElement('span');
-      badge.className = 'hn-comment-badge';
-      badge.textContent = commentCount;
+      // Suggestion 5: Get badge style based on comment count
+      const badgeStyle = getBadgeStyle(commentCount);
+
+      // Suggestion 3: Make badge a clickable link to HN
+      const badge = document.createElement('a');
+      badge.className = `hn-comment-badge hn-badge-${badgeStyle.label}`;
+      badge.href = `https://news.ycombinator.com/item?id=${itemData.id}`;
+      badge.target = '_blank';
+      badge.rel = 'noopener noreferrer';
+      badge.title = `View ${commentCount} comments on Hacker News`;
+      badge.textContent = `${badgeStyle.icon ? badgeStyle.icon + ' ' : ''}${commentCount}`;
+      badge.addEventListener('click', (e) => e.stopPropagation());
+
       link.parentNode.insertBefore(badge, link.nextSibling);
 
       storyResults.push({ link, itemData, commentCount });
@@ -377,7 +494,6 @@ async function processCommentLinks() {
     for (const { link, itemData, commentCount } of storyResults) {
       if (commentCount === 0) continue;
 
-      // Add loading indicator
       const loadingElement = document.createElement('div');
       loadingElement.className = 'hn-comments-container';
       loadingElement.innerHTML = '<div class="hn-loading">Loading comments...</div>';
@@ -394,7 +510,11 @@ async function processCommentLinks() {
         if (topComments.length === 0) {
           loadingElement.innerHTML = '<div class="hn-loading">No comments available</div>';
         } else {
-          const commentsElement = createCommentsElement(topComments, itemData.validCommentsCount || topComments.length);
+          const commentsElement = createCommentsElement(
+            topComments,
+            itemData.validCommentsCount || topComments.length,
+            itemData.id // pass story ID for "View on HN" link
+          );
           loadingElement.replaceWith(commentsElement);
         }
       } catch (error) {

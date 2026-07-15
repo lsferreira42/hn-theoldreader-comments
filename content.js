@@ -420,6 +420,7 @@ function createCommentsElement(comments, totalComments = 0, storyId = null) {
     viewAllLink.target = '_blank';
     viewAllLink.rel = 'noopener noreferrer';
     viewAllLink.textContent = 'View all comments on HN →';
+    viewAllLink.dataset.hnProcessed = 'true';
     container.appendChild(viewAllLink);
   }
 
@@ -432,7 +433,17 @@ async function processCommentLinks() {
 
   const commentLinks = Array.from(
     document.querySelectorAll('.content-body a[href*="news.ycombinator.com/item"]')
-  ).filter(link => link.dataset.hnProcessed !== 'true' && !link.parentNode.querySelector('.hn-comment-badge'));
+  ).filter(link => {
+    // Basic checks
+    if (link.dataset.hnProcessed === 'true') return false;
+    if (link.classList.contains('hn-comment-badge') || link.classList.contains('hn-view-all-link')) return false;
+    if (link.parentNode.querySelector('.hn-comment-badge')) return false;
+
+    // Ensure we are not inside a comments container we created
+    if (link.closest('.hn-comments-container')) return false;
+
+    return true;
+  });
 
   if (commentLinks.length === 0) {
     log('No new HN links found.');
@@ -481,6 +492,7 @@ async function processCommentLinks() {
       badge.rel = 'noopener noreferrer';
       badge.title = `View ${commentCount} comments on Hacker News`;
       badge.textContent = `${badgeStyle.icon ? badgeStyle.icon + ' ' : ''}${commentCount}`;
+      badge.dataset.hnProcessed = 'true';
       badge.addEventListener('click', (e) => e.stopPropagation());
 
       link.parentNode.insertBefore(badge, link.nextSibling);
@@ -527,15 +539,27 @@ async function processCommentLinks() {
   log(`Processing complete! ${storyResults.length} badges added.`);
 }
 
-// Configure MutationObserver for dynamic content
+// Configure MutationObserver for dynamic content.
+//
+// The Old Reader is a SPA: on every in-app navigation it REPLACES the whole
+// `.posts` node with a freshly fetched one (no full page reload). Observing
+// `.posts` directly leaves us watching a detached, orphaned node that never
+// fires again — which is why comments only showed up after a hard reload.
+// We instead observe a stable ancestor that survives navigation (`.content-cell`),
+// falling back to progressively broader containers so we always attach.
 let observerConfigured = false;
 
 function setupObserver() {
   if (observerConfigured) return;
 
-  const postsContainer = document.querySelector('.posts');
-  if (!postsContainer) {
-    log('Posts container not found');
+  const target =
+    document.querySelector('.content-cell') ||
+    document.querySelector('.main-container') ||
+    document.body;
+
+  if (!target) {
+    // DOM shell not ready yet — retry shortly.
+    setTimeout(setupObserver, 500);
     return;
   }
 
@@ -547,9 +571,11 @@ function setupObserver() {
     for (const mutation of mutations) {
       if (mutation.addedNodes.length === 0) continue;
       for (const node of mutation.addedNodes) {
-        if (node.nodeType === Node.ELEMENT_NODE &&
-            node.querySelectorAll &&
-            node.querySelectorAll('a[href*="news.ycombinator.com/item"]').length > 0) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+        // A new post list / post / HN link appeared somewhere in this subtree.
+        if ((node.matches && node.matches('.posts, .post, .content-body')) ||
+            (node.querySelector &&
+             node.querySelector('.post, a[href*="news.ycombinator.com/item"]'))) {
           hasNewPosts = true;
           break;
         }
@@ -563,9 +589,9 @@ function setupObserver() {
     }
   });
 
-  observer.observe(postsContainer, { childList: true, subtree: true });
+  observer.observe(target, { childList: true, subtree: true });
   observerConfigured = true;
-  log('Observer configured');
+  log('Observer configured on', target.className || target.tagName);
 }
 
 // Main entry point
